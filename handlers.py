@@ -1,114 +1,120 @@
-# handlers.py
-from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, CommandHandler, filters
-from config import CHANNEL_ID
-from keyboards import manager_keyboard, delivery_keyboard_with_back, comment_keyboard
+from telegram import Update, InputMediaPhoto
+from telegram.ext import ContextTypes, ConversationHandler
+from datetime import datetime
+from config import CHANNEL_ID, IMAGES, DELIVERY_PRICES
+from keyboard import manager_keyboard, delivery_keyboard, comment_keyboard
 
-MANAGER, DELIVERY, COMMENT = range(3)
+CHOOSE_MANAGER, CHOOSE_DELIVERY, WRITE_COMMENT = range(3)
 
 user_data = {}
+delivery_stats = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id,
-        photo="https://i.imgur.com/aW2ZfM6.jpeg",
-        caption="Выберите менеджера:",
+    await update.message.reply_photo(
+        photo=IMAGES["choose_manager"],
+        caption="💬 Выберите менеджера:",
         reply_markup=manager_keyboard()
     )
-    return MANAGER
+    return CHOOSE_MANAGER
 
-async def select_manager(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def choose_manager(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     manager = query.data.replace("manager_", "")
-    user_data[query.from_user.id] = {"manager": manager}
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id,
-        photo="https://i.imgur.com/Bv1EmlH.jpeg",
-        caption="Выберите тип доставки:",
-        reply_markup=delivery_keyboard_with_back()
-    )
-    await query.delete_message()
-    return DELIVERY
 
-async def select_delivery(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[query.from_user.id] = {"manager": manager}
+
+    await query.message.edit_media(
+        media=InputMediaPhoto(
+            media=IMAGES["choose_delivery"],
+            caption=f"{manager}\n\n📦 Выберите тип доставки:"
+        ),
+        reply_markup=delivery_keyboard()
+    )
+    return CHOOSE_DELIVERY
+
+async def choose_delivery(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    user_id = query.from_user.id
+    manager = user_data.get(user_id, {}).get("manager", "❓")
+
+    if query.data == "back_to_manager":
+        user_data.pop(user_id, None)
+        await query.message.edit_media(
+            media=InputMediaPhoto(
+                media=IMAGES["choose_manager"],
+                caption="💬 Выберите менеджера:"
+            ),
+            reply_markup=manager_keyboard()
+        )
+        return CHOOSE_MANAGER
+
     delivery = query.data.replace("delivery_", "")
-    user_data[query.from_user.id]["delivery"] = delivery
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id,
-        photo="https://i.imgur.com/6MjshN5.jpeg",
-        caption="Напишите комментарий к доставке:",
+    user_data[user_id]["delivery"] = delivery
+
+    await query.message.edit_media(
+        media=InputMediaPhoto(
+            media=IMAGES["choose_comment"],
+            caption="💬 Введите комментарий:"
+        ),
         reply_markup=comment_keyboard()
     )
-    await query.delete_message()
-    return COMMENT
-
-async def get_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.message.from_user.id
-    user_data[uid]["comment"] = update.message.text
-
-    message = (
-        f"{user_data[uid]['manager']}\n"
-        f"{user_data[uid]['delivery']}\n"
-        f"💬 Комментарий: {user_data[uid]['comment']}"
-    )
-    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id,
-        photo="https://i.imgur.com/aW2ZfM6.jpeg",
-        caption="Данные отправлены. Начнем заново.\nВыберите менеджера:",
-        reply_markup=manager_keyboard()
-    )
-    return MANAGER
-
-async def back_to_manager(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id,
-        photo="https://i.imgur.com/aW2ZfM6.jpeg",
-        caption="Выберите менеджера:",
-        reply_markup=manager_keyboard()
-    )
-    await query.delete_message()
-    return MANAGER
+    return WRITE_COMMENT
 
 async def back_to_delivery(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await context.bot.send_photo(
-        chat_id=update.effective_chat.id,
-        photo="https://i.imgur.com/Bv1EmlH.jpeg",
-        caption="Выберите тип доставки:",
-        reply_markup=delivery_keyboard_with_back()
+    user_id = update.effective_user.id
+    manager = user_data.get(user_id, {}).get("manager", "❓")
+
+    await update.callback_query.message.edit_media(
+        media=InputMediaPhoto(
+            media=IMAGES["choose_delivery"],
+            caption=f"{manager}\n\n📦 Выберите тип доставки:"
+        ),
+        reply_markup=delivery_keyboard()
     )
-    await query.delete_message()
-    return DELIVERY
+    return CHOOSE_DELIVERY
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Операция отменена.")
-    return ConversationHandler.END
+async def write_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    data = user_data.get(user_id, {})
+    comment = update.message.text.strip()
 
-def get_conv_handler():
-    return ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            MANAGER: [
-                CallbackQueryHandler(select_manager, pattern="^manager_")
-            ],
-            DELIVERY: [
-                CallbackQueryHandler(select_delivery, pattern="^delivery_"),
-                CallbackQueryHandler(back_to_manager, pattern="^back_to_manager$")
-            ],
-            COMMENT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_comment),
-                CallbackQueryHandler(back_to_delivery, pattern="^back_to_delivery$")
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
+    if not comment:
+        await update.message.reply_text("❗ Пожалуйста, введите комментарий.")
+        return WRITE_COMMENT
+
+    data["comment"] = comment
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+    manager = data.get("manager")
+    delivery = data.get("delivery")
+    amount = DELIVERY_PRICES.get(delivery, 0)
+
+    if manager not in delivery_stats:
+        delivery_stats[manager] = []
+
+    delivery_stats[manager].append({
+        "type": delivery,
+        "amount": amount
+    })
+
+    text = (
+        f"🕒 {now}\n\n"
+        f"*Менеджер:* {manager}\n"
+        f"*Тип:* {delivery}\n"
+        f"*Комментарий:* {comment}"
     )
 
-def register_handlers(application):
-    application.add_handler(get_conv_handler())
+    try:
+        await context.bot.send_message(chat_id=CHANNEL_ID, text=text, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка отправки в канал: {e}")
+        return ConversationHandler.END
+
+    await update.message.reply_photo(
+        photo=IMAGES["choose_delivery"],
+        caption=f"✅ Успешно отправлено!\n\n{manager}\n\n📦 Выберите тип доставки:",
+        reply_markup=delivery_keyboard()
+    )
+    return CHOOSE_DELIVERY
