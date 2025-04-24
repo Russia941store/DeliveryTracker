@@ -10,10 +10,13 @@ from config import BOT_TOKEN
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(get_conv_handler())
+    
+    await app.initialize()
+    await app.start()
     print("Бот запущен...")
-    await app.run_polling()
+    await app.updater.start_polling()
 
-# === Правильный запуск в окружении Amvera ===
+# === запуск без закрытия event loop ===
 import asyncio
 
 if __name__ == "__main__":
