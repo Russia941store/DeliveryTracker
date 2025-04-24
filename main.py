@@ -4,7 +4,6 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder
-from handlers import main_handler
 
 load_dotenv()
 
@@ -22,3 +21,8 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+    # main.py
+import os
+from dotenv import load_dotenv
+load_dotenv()
