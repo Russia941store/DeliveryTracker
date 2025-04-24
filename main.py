@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-import asyncio
 from telegram.ext import ApplicationBuilder
 from handlers import get_conv_handler
 from config import BOT_TOKEN
@@ -16,10 +15,4 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
-    import sys
-
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
