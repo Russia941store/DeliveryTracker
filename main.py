@@ -13,6 +13,13 @@ async def main():
     print("Бот запущен...")
     await app.run_polling()
 
+# === Правильный запуск в окружении Amvera ===
+import asyncio
+
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(main())
+        loop.run_forever()
+    except (KeyboardInterrupt, SystemExit):
+        pass
