@@ -1,4 +1,4 @@
-#handlers.py
+# handlers.py
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, CommandHandler, filters
 from config import CHANNEL_ID
@@ -48,8 +48,6 @@ async def select_delivery(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
     user_data[uid]["comment"] = update.message.text
-
-    print("chat_id:", update.effective_chat.id)
 
     message = (
         f"{user_data[uid]['manager']}\n"
@@ -111,3 +109,6 @@ def get_conv_handler():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
+def register_handlers(application):
+    application.add_handler(get_conv_handler())
